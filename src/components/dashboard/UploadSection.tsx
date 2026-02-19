@@ -52,9 +52,10 @@ export default function UploadSection({ onBookCreated }: UploadSectionProps) {
     setStep("extracting");
 
     try {
-      // Dynamic import pdfjs
+      // Dynamic import pdfjs with local worker
       const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      const workerUrl = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url);
+      pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl.toString();
 
       const arrayBuffer = await f.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
