@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BookOpen, Upload, Library, User as UserIcon, LogOut,
-  Menu, X, Headphones, ChevronRight, Bell
+  Menu, Headphones, ChevronRight, BarChart2, Mic2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AudiobookEntry, getBooks } from "@/lib/audiobookStore";
@@ -13,16 +13,16 @@ import Profile from "@/components/dashboard/Profile";
 type Tab = "upload" | "library" | "profile";
 
 const NAV = [
-  { id: "upload" as Tab, icon: Upload, label: "Convert PDF" },
-  { id: "library" as Tab, icon: Library, label: "My Library" },
-  { id: "profile" as Tab, icon: UserIcon, label: "Profile" },
+  { id: "upload"  as Tab, icon: Upload,   label: "Convert PDF",   badge: null },
+  { id: "library" as Tab, icon: Library,  label: "My Library",    badge: "count" },
+  { id: "profile" as Tab, icon: UserIcon, label: "Profile",       badge: null },
 ];
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>("upload");
-  const [books, setBooks] = useState<AudiobookEntry[]>([]);
+  const [tab, setTab]           = useState<Tab>("upload");
+  const [books, setBooks]       = useState<AudiobookEntry[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -31,29 +31,27 @@ export default function Dashboard() {
   }, [user, navigate]);
 
   const handleBookCreated = (book: AudiobookEntry) => {
-    setBooks((prev) => [book, ...prev]);
+    setBooks(prev => [book, ...prev]);
     setTab("library");
   };
 
   const handleDelete = (id: string) => {
-    setBooks((prev) => prev.filter((b) => b.id !== id));
+    setBooks(prev => prev.filter(b => b.id !== id));
   };
 
   const initials = (user?.name || "U")
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .substring(0, 2);
+    .split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2);
+
+  const totalWords = books.reduce((s, b) => s + b.wordCount, 0);
 
   const tabTitle: Record<Tab, string> = {
-    upload: "Convert PDF to Audio",
+    upload:  "Convert PDF to Audio",
     library: "My Audiobooks",
     profile: "Profile & Settings",
   };
 
   const tabDesc: Record<Tab, string> = {
-    upload: "Upload a PDF, choose a language, and create an audiobook in seconds.",
+    upload:  "Upload a PDF, choose a language, and create an audiobook in seconds.",
     library: `You have ${books.length} audiobook${books.length !== 1 ? "s" : ""} in your library.`,
     profile: "Manage your account details and preferences.",
   };
@@ -62,7 +60,6 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
       <>
-        {/* Mobile overlay */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-20 lg:hidden"
@@ -78,20 +75,20 @@ export default function Dashboard() {
           {/* Logo */}
           <div className="p-6 border-b border-border">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center">
+              <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-md">
                 <Headphones className="w-4.5 h-4.5 text-primary-foreground" />
               </div>
               <div>
                 <p className="font-bold text-foreground text-base leading-tight">AudioScribe</p>
-                <p className="text-xs text-muted-foreground">PDF to Audio</p>
+                <p className="text-xs text-muted-foreground">AI Audiobook Platform</p>
               </div>
             </div>
           </div>
 
           {/* Nav */}
-          <nav className="flex-1 p-4 space-y-1">
-            <p className="section-label px-4 mb-3 mt-1">Navigation</p>
-            {NAV.map(({ id, icon: Icon, label }) => (
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            <p className="section-label px-4 mb-3 mt-1">Main</p>
+            {NAV.map(({ id, icon: Icon, label, badge }) => (
               <button
                 key={id}
                 onClick={() => { setTab(id); setSidebarOpen(false); }}
@@ -99,7 +96,7 @@ export default function Dashboard() {
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 <span className="flex-1 text-left">{label}</span>
-                {id === "library" && books.length > 0 && (
+                {badge === "count" && books.length > 0 && (
                   <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
                     tab === id ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/10 text-primary"
                   }`}>
@@ -108,6 +105,33 @@ export default function Dashboard() {
                 )}
               </button>
             ))}
+
+            {/* Stats summary in sidebar */}
+            {books.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <p className="section-label px-4 mb-3">Stats</p>
+                <div className="px-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <BarChart2 className="w-3.5 h-3.5" />Books
+                    </span>
+                    <span className="text-xs font-semibold text-foreground">{books.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <BookOpen className="w-3.5 h-3.5" />Words
+                    </span>
+                    <span className="text-xs font-semibold text-foreground">{totalWords.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Mic2 className="w-3.5 h-3.5" />Est. listen
+                    </span>
+                    <span className="text-xs font-semibold text-foreground">~{Math.ceil(totalWords / 150)}m</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </nav>
 
           {/* User card */}
@@ -150,8 +174,8 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2 bg-muted px-3 py-1.5 rounded-xl">
-              <div className="w-2 h-2 bg-primary rounded-full" />
-              <span className="text-xs font-medium text-muted-foreground">Free plan</span>
+              <div className="w-2 h-2 bg-success rounded-full animate-pulse-soft" />
+              <span className="text-xs font-medium text-muted-foreground">Web Speech · Active</span>
             </div>
             <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shrink-0">
               <span className="text-primary-foreground text-xs font-bold">{initials}</span>
@@ -174,7 +198,9 @@ export default function Dashboard() {
                     <p className="text-sm font-semibold text-foreground">
                       {books.length} audiobook{books.length !== 1 ? "s" : ""} in your library
                     </p>
-                    <p className="text-xs text-muted-foreground">Tap to view and listen</p>
+                    <p className="text-xs text-muted-foreground">
+                      {totalWords.toLocaleString()} words total · tap to listen
+                    </p>
                   </div>
                   <button
                     onClick={() => setTab("library")}
