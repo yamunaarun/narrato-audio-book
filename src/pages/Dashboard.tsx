@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BookOpen, Upload, Library, User as UserIcon, LogOut,
-  Menu, Headphones, ChevronRight, BarChart2, Mic2
+  Menu, Headphones, ChevronRight, BarChart2, Mic2, Wifi, WifiOff
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AudiobookEntry, getBooks } from "@/lib/audiobookStore";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import UploadSection from "@/components/dashboard/UploadSection";
 import AudioLibrary from "@/components/dashboard/AudioLibrary";
 import Profile from "@/components/dashboard/Profile";
@@ -21,13 +22,19 @@ const NAV = [
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const isOnline = useOnlineStatus();
   const [tab, setTab]           = useState<Tab>("upload");
   const [books, setBooks]       = useState<AudiobookEntry[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) { navigate("/login"); return; }
-    setBooks(getBooks(user.id));
+    setLoading(true);
+    getBooks(user.id).then((data) => {
+      setBooks(data);
+      setLoading(false);
+    });
   }, [user, navigate]);
 
   const handleBookCreated = (book: AudiobookEntry) => {
@@ -145,7 +152,7 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
               </div>
               <button
-                onClick={logout}
+                onClick={() => logout()}
                 className="text-muted-foreground hover:text-destructive transition-colors"
                 title="Sign out"
               >
@@ -173,9 +180,21 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 bg-muted px-3 py-1.5 rounded-xl">
-              <div className="w-2 h-2 bg-success rounded-full animate-pulse-soft" />
-              <span className="text-xs font-medium text-muted-foreground">Web Speech · Active</span>
+            {/* Online/Offline indicator */}
+            <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl ${
+              isOnline ? "bg-success/10" : "bg-warning/10"
+            }`}>
+              {isOnline ? (
+                <>
+                  <Wifi className="w-3.5 h-3.5 text-success" />
+                  <span className="text-xs font-medium text-success">Online · OpenAI TTS</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-3.5 h-3.5 text-warning" />
+                  <span className="text-xs font-medium text-warning">Offline · Browser TTS</span>
+                </>
+              )}
             </div>
             <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shrink-0">
               <span className="text-primary-foreground text-xs font-bold">{initials}</span>
@@ -215,7 +234,13 @@ export default function Dashboard() {
 
           {tab === "library" && (
             <div className="animate-fade-up">
-              <AudioLibrary books={books} onDelete={handleDelete} />
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <AudioLibrary books={books} onDelete={handleDelete} />
+              )}
             </div>
           )}
 

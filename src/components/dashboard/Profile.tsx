@@ -1,41 +1,50 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { User, Mail, Calendar, BookOpen, Loader2, CheckCircle2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Profile() {
   const { user, logout } = useAuth();
   const [name, setName] = useState(user?.name || "");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [bookCount, setBookCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("audiobooks")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .then(({ count }) => setBookCount(count || 0));
+  }, [user]);
 
   const handleSave = async () => {
+    if (!user) return;
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 600));
-    // Update user in localStorage
-    const stored = JSON.parse(localStorage.getItem("audiobook_user") || "{}");
-    stored.name = name;
-    localStorage.setItem("audiobook_user", JSON.stringify(stored));
-    const users = JSON.parse(localStorage.getItem("audiobook_users") || "[]");
-    const updated = users.map((u: any) => u.id === user?.id ? { ...u, name } : u);
-    localStorage.setItem("audiobook_users", JSON.stringify(updated));
+
+    // Update display name in auth metadata
+    await supabase.auth.updateUser({
+      data: { display_name: name },
+    });
+
+    // Update profile table
+    await supabase
+      .from("profiles")
+      .update({ display_name: name })
+      .eq("user_id", user.id);
+
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
   const initials = (name || user?.name || "U")
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .substring(0, 2);
+    .split(" ").map((n) => n[0]).join("").toUpperCase().substring(0, 2);
 
   const fmtDate = (iso?: string) => iso
     ? new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
     : "—";
-
-  const bookCount = JSON.parse(localStorage.getItem("audiobook_library") || "[]")
-    .filter((b: any) => b.userId === user?.id).length;
 
   return (
     <div className="space-y-6 max-w-lg animate-fade-up">
@@ -116,12 +125,12 @@ export default function Profile() {
         </button>
       </div>
 
-      {/* Danger zone */}
+      {/* Sign out */}
       <div className="glass-card p-6 border border-destructive/20">
         <h4 className="font-semibold text-foreground mb-1">Sign out</h4>
         <p className="text-sm text-muted-foreground mb-4">You'll need to sign back in to access your library.</p>
         <button
-          onClick={logout}
+          onClick={() => logout()}
           className="px-6 py-2.5 rounded-xl text-sm font-semibold border border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all"
         >
           Sign out

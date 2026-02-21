@@ -10,6 +10,16 @@ import { smartSplitParagraphs, applyDictionary, DEFAULT_DICTIONARY } from "@/lib
 
 const LANGUAGES = [
   { code: "en", label: "English" },
+  { code: "hi", label: "Hindi" },
+  { code: "ta", label: "Tamil" },
+  { code: "te", label: "Telugu" },
+  { code: "bn", label: "Bengali" },
+  { code: "mr", label: "Marathi" },
+  { code: "gu", label: "Gujarati" },
+  { code: "kn", label: "Kannada" },
+  { code: "ml", label: "Malayalam" },
+  { code: "pa", label: "Punjabi" },
+  { code: "ur", label: "Urdu" },
   { code: "es", label: "Spanish" },
   { code: "fr", label: "French" },
   { code: "de", label: "German" },
@@ -19,7 +29,6 @@ const LANGUAGES = [
   { code: "zh", label: "Chinese (Simplified)" },
   { code: "ja", label: "Japanese" },
   { code: "ar", label: "Arabic" },
-  { code: "hi", label: "Hindi" },
   { code: "ko", label: "Korean" },
   { code: "nl", label: "Dutch" },
   { code: "pl", label: "Polish" },
@@ -127,9 +136,10 @@ export default function UploadSection({ onBookCreated }: UploadSectionProps) {
         pdfSize: file!.size,
         createdAt: new Date().toISOString(),
         wordCount: correctedText.split(/\s+/).filter(Boolean).length,
+        paragraphs,
       };
 
-      saveBook(book);
+      await saveBook(book);
       onBookCreated(book);
       setStep("done");
     } catch (err: any) {
