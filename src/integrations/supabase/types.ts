@@ -14,7 +14,146 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audiobooks: {
+        Row: {
+          created_at: string
+          id: string
+          language: string
+          language_label: string
+          original_text: string
+          paragraphs: Json
+          pdf_name: string
+          pdf_size: number
+          title: string
+          translated_text: string
+          updated_at: string
+          user_id: string
+          word_count: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          language?: string
+          language_label?: string
+          original_text: string
+          paragraphs?: Json
+          pdf_name: string
+          pdf_size?: number
+          title: string
+          translated_text: string
+          updated_at?: string
+          user_id: string
+          word_count?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          language?: string
+          language_label?: string
+          original_text?: string
+          paragraphs?: Json
+          pdf_name?: string
+          pdf_size?: number
+          title?: string
+          translated_text?: string
+          updated_at?: string
+          user_id?: string
+          word_count?: number
+        }
+        Relationships: []
+      }
+      playback_state: {
+        Row: {
+          audiobook_id: string
+          chunk_index: number
+          id: string
+          position_seconds: number
+          speed: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          audiobook_id: string
+          chunk_index?: number
+          id?: string
+          position_seconds?: number
+          speed?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          audiobook_id?: string
+          chunk_index?: number
+          id?: string
+          position_seconds?: number
+          speed?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playback_state_audiobook_id_fkey"
+            columns: ["audiobook_id"]
+            isOneToOne: false
+            referencedRelation: "audiobooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_preferences: {
+        Row: {
+          id: string
+          preferred_language: string
+          preferred_speed: number
+          preferred_voice: string | null
+          theme: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          preferred_language?: string
+          preferred_speed?: number
+          preferred_voice?: string | null
+          theme?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          preferred_language?: string
+          preferred_speed?: number
+          preferred_voice?: string | null
+          theme?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,1 +1,4 @@
 project_id = "ircftblosdeylismsrud"
+
+[functions.text-to-speech]
+verify_jwt = false

@@ -12,20 +12,6 @@ interface AudioLibraryProps {
   onDelete: (id: string) => void;
 }
 
-function loadNote(id: string) {
-  return localStorage.getItem(`note_${id}`) || "";
-}
-function saveNote(id: string, note: string) {
-  localStorage.setItem(`note_${id}`, note);
-}
-function loadProgress(id: string) {
-  return parseFloat(localStorage.getItem(`prog_${id}`) || "0");
-}
-function loadBookmarkCount(id: string) {
-  try { return (JSON.parse(localStorage.getItem(`bm_${id}`) || "[]") as unknown[]).length; }
-  catch { return 0; }
-}
-
 function fmt(s: number) {
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 }
@@ -34,12 +20,6 @@ export default function AudioLibrary({ books, onDelete }: AudioLibraryProps) {
   const [activePlayer, setActivePlayer] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [noteOpen, setNoteOpen] = useState<string | null>(null);
-  const [notes, setNotes] = useState<Record<string, string>>(() => {
-    const m: Record<string, string> = {};
-    books.forEach(b => { m[b.id] = loadNote(b.id); });
-    return m;
-  });
   const [showStats, setShowStats] = useState(false);
 
   const filtered = books.filter(
@@ -48,17 +28,15 @@ export default function AudioLibrary({ books, onDelete }: AudioLibraryProps) {
       b.languageLabel.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleDelete = (id: string) => {
-    deleteBook(id);
-    onDelete(id);
-    if (activePlayer === id) setActivePlayer(null);
-    if (expanded === id) setExpanded(null);
-    if (noteOpen === id) setNoteOpen(null);
-  };
-
-  const handleNote = (id: string, val: string) => {
-    setNotes(prev => ({ ...prev, [id]: val }));
-    saveNote(id, val);
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteBook(id);
+      onDelete(id);
+      if (activePlayer === id) setActivePlayer(null);
+      if (expanded === id) setExpanded(null);
+    } catch (e) {
+      console.error("Delete failed:", e);
+    }
   };
 
   const fmt2 = (bytes: number) => {
@@ -70,13 +48,8 @@ export default function AudioLibrary({ books, onDelete }: AudioLibraryProps) {
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-  // ─── Global stats ────────────────────────────────────────────────────────
   const totalWords   = books.reduce((s, b) => s + b.wordCount, 0);
   const totalMinutes = Math.ceil(totalWords / 150);
-  const totalBMs     = books.reduce((s, b) => s + loadBookmarkCount(b.id), 0);
-  const listenedPct  = books.length
-    ? Math.round(books.filter(b => loadProgress(b.id) > 10).length / books.length * 100)
-    : 0;
 
   if (books.length === 0) {
     return (
@@ -110,12 +83,11 @@ export default function AudioLibrary({ books, onDelete }: AudioLibraryProps) {
       </button>
 
       {showStats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 animate-fade-up">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 animate-fade-up">
           {[
             { icon: BookOpen,    label: "Books",      value: books.length,         sub: "uploaded" },
             { icon: Clock,       label: "Est. Time",  value: `${totalMinutes}m`,   sub: "to listen" },
-            { icon: TrendingUp,  label: "Listened",   value: `${listenedPct}%`,    sub: "started" },
-            { icon: CheckCircle2,label: "Bookmarks",  value: totalBMs,             sub: "saved" },
+            { icon: TrendingUp,  label: "Total Words", value: totalWords.toLocaleString(), sub: "extracted" },
           ].map(({ icon: Icon, label, value, sub }) => (
             <div key={label} className="glass-card p-4 flex flex-col items-center text-center">
               <Icon className="w-5 h-5 text-primary mb-2" />
@@ -147,11 +119,6 @@ export default function AudioLibrary({ books, onDelete }: AudioLibraryProps) {
 
       <div className="space-y-3">
         {filtered.map((book, i) => {
-          const prog     = loadProgress(book.id);
-          const progPct  = Math.min((prog / Math.ceil((book.wordCount / 150) * 60)) * 100, 100);
-          const bmCount  = loadBookmarkCount(book.id);
-          const hasNote  = !!(notes[book.id]?.trim());
-
           return (
             <div
               key={book.id}
@@ -160,13 +127,8 @@ export default function AudioLibrary({ books, onDelete }: AudioLibraryProps) {
             >
               {/* Header */}
               <div className="p-4 flex items-center gap-4">
-                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center shrink-0 relative">
+                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
                   <BookOpen className="w-5 h-5 text-primary" />
-                  {progPct > 5 && (
-                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-card border border-border rounded-full flex items-center justify-center">
-                      <div className="w-2.5 h-2.5 rounded-full bg-primary" style={{ opacity: progPct / 100 }} />
-                    </div>
-                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -181,27 +143,10 @@ export default function AudioLibrary({ books, onDelete }: AudioLibraryProps) {
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Calendar className="w-3 h-3" />{fmtDate(book.createdAt)}
                     </span>
-                    {bmCount > 0 && (
-                      <span className="text-xs text-yellow-600 bg-yellow-50 px-1.5 py-0.5 rounded-full font-medium">
-                        {bmCount} 🔖
-                      </span>
-                    )}
-                    {hasNote && (
-                      <span className="text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded-full font-medium">
-                        📝 note
-                      </span>
-                    )}
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      {book.paragraphs.length} paragraphs
+                    </span>
                   </div>
-
-                  {/* Progress bar */}
-                  {progPct > 1 && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <div className="flex-1 h-1 bg-border rounded-full overflow-hidden">
-                        <div className="h-full bg-primary rounded-full" style={{ width: `${progPct}%` }} />
-                      </div>
-                      <span className="text-xs text-muted-foreground shrink-0">{fmt(prog)}</span>
-                    </div>
-                  )}
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -215,16 +160,6 @@ export default function AudioLibrary({ books, onDelete }: AudioLibraryProps) {
                   >
                     <Play className="w-3 h-3" />
                     {activePlayer === book.id ? "Hide" : "Play"}
-                  </button>
-
-                  <button
-                    onClick={() => setNoteOpen(noteOpen === book.id ? null : book.id)}
-                    title="Notes"
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                      hasNote ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    <StickyNote className="w-4 h-4" />
                   </button>
 
                   <button
@@ -247,20 +182,6 @@ export default function AudioLibrary({ books, onDelete }: AudioLibraryProps) {
               {activePlayer === book.id && (
                 <div className="border-t border-border p-4 bg-muted/30 animate-fade-up">
                   <AudioPlayer book={book} />
-                </div>
-              )}
-
-              {/* Notes panel */}
-              {noteOpen === book.id && (
-                <div className="border-t border-border p-4 animate-fade-up">
-                  <p className="section-label mb-2">📝 Your Notes</p>
-                  <textarea
-                    className="input-field min-h-[80px] resize-none text-sm"
-                    placeholder="Write your notes, highlights, or thoughts about this audiobook…"
-                    value={notes[book.id] || ""}
-                    onChange={e => handleNote(book.id, e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Notes are saved automatically.</p>
                 </div>
               )}
 

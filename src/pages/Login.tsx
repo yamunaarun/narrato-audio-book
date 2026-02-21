@@ -19,7 +19,11 @@ export default function Login() {
       await login(form.email, form.password);
       navigate("/dashboard");
     } catch (err: any) {
-      setError(err.message);
+      if (err.message?.includes("Email not confirmed")) {
+        setError("Please check your email and confirm your account before signing in.");
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }

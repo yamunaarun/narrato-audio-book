@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { BookOpen, Eye, EyeOff, Loader2, Mail, Lock, User } from "lucide-react";
+import { BookOpen, Eye, EyeOff, Loader2, Mail, Lock, User, CheckCircle2 } from "lucide-react";
 
 export default function Register() {
   const { register } = useAuth();
@@ -10,6 +10,7 @@ export default function Register() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +26,7 @@ export default function Register() {
     setLoading(true);
     try {
       await register(form.name, form.email, form.password);
-      navigate("/dashboard");
+      setRegistered(true);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -97,6 +98,22 @@ export default function Register() {
             <span className="text-foreground font-bold text-xl">AudioScribe</span>
           </div>
 
+          {registered ? (
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-success/10 rounded-2xl flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-8 h-8 text-success" />
+              </div>
+              <h2 className="text-2xl font-bold text-foreground">Check your email</h2>
+              <p className="text-muted-foreground">
+                We've sent a confirmation link to <strong>{form.email}</strong>. 
+                Please click the link to verify your account, then sign in.
+              </p>
+              <Link to="/login" className="btn-primary inline-block px-6 py-3 rounded-xl text-sm font-semibold">
+                Go to Sign In
+              </Link>
+            </div>
+          ) : (
+          <>
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-foreground mb-2">Create account</h2>
             <p className="text-muted-foreground">Join thousands of readers turning PDFs into audio</p>
@@ -214,6 +231,8 @@ export default function Register() {
               Sign in
             </Link>
           </p>
+          </>
+          )}
         </div>
       </div>
     </div>
