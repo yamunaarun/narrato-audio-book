@@ -1,23 +1,26 @@
 /**
- * Smart TTS engine: OpenAI online, browser SpeechSynthesis offline fallback.
+ * Smart TTS engine: ElevenLabs online, browser SpeechSynthesis offline fallback.
  */
 
 const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/text-to-speech`;
 
-export type OpenAIVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
+// ElevenLabs voice IDs and labels
+export type ElevenLabsVoice = string;
 
-export const OPENAI_VOICES: { id: OpenAIVoice; label: string }[] = [
-  { id: "alloy", label: "Alloy" },
-  { id: "echo", label: "Echo" },
-  { id: "fable", label: "Fable" },
-  { id: "onyx", label: "Onyx" },
-  { id: "nova", label: "Nova" },
-  { id: "shimmer", label: "Shimmer" },
+export const ELEVENLABS_VOICES: { id: string; label: string }[] = [
+  { id: "JBFqnCBsd6RMkjVDRZzb", label: "George" },
+  { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah" },
+  { id: "Xb7hH8MSUJpSbSDYk0k2", label: "Alice" },
+  { id: "onwK4e9ZLuTAKqWW03F9", label: "Daniel" },
+  { id: "pFZP5JQG7iQjIQuC4Bku", label: "Lily" },
+  { id: "CwhRBWXzGAHq8TQ4Fs17", label: "Roger" },
+  { id: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam" },
+  { id: "cgSgspJ2msm6clMCkdW9", label: "Jessica" },
 ];
 
 export async function synthesizeOnline(
   text: string,
-  voice: OpenAIVoice = "alloy",
+  voiceId: string = "JBFqnCBsd6RMkjVDRZzb",
   speed: number = 1.0
 ): Promise<ArrayBuffer> {
   const resp = await fetch(TTS_URL, {
@@ -26,7 +29,7 @@ export async function synthesizeOnline(
       "Content-Type": "application/json",
       Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
-    body: JSON.stringify({ text, voice, speed }),
+    body: JSON.stringify({ text, voiceId, speed }),
   });
 
   if (!resp.ok) {
