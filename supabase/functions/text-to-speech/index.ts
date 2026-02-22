@@ -11,15 +11,15 @@ serve(async (req) => {
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) {
-      return new Response(JSON.stringify({ error: "OpenAI API key not configured" }), {
+    const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
+    if (!ELEVENLABS_API_KEY) {
+      return new Response(JSON.stringify({ error: "ElevenLabs API key not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { text, voice = "alloy", speed = 1.0 } = await req.json();
+    const { text, voiceId = "JBFqnCBsd6RMkjVDRZzb", speed = 1.0 } = await req.json();
 
     if (!text || typeof text !== "string") {
       return new Response(JSON.stringify({ error: "Text is required" }), {
@@ -28,35 +28,42 @@ serve(async (req) => {
       });
     }
 
-    // OpenAI TTS has a 4096 character limit per request
-    const trimmedText = text.substring(0, 4096);
+    // ElevenLabs has a 5000 character limit per request
+    const trimmedText = text.substring(0, 5000);
 
-    const response = await fetch("https://api.openai.com/v1/audio/speech", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "tts-1",
-        input: trimmedText,
-        voice: voice,
-        speed: Math.max(0.25, Math.min(4.0, speed)),
-        response_format: "mp3",
-      }),
-    });
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": ELEVENLABS_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: trimmedText,
+          model_id: "eleven_multilingual_v2",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0.5,
+            use_speaker_boost: true,
+            speed: Math.max(0.7, Math.min(1.2, speed)),
+          },
+        }),
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("OpenAI TTS error:", response.status, errorText);
-      
+      console.error("ElevenLabs TTS error:", response.status, errorText);
+
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      
+
       return new Response(JSON.stringify({ error: "TTS generation failed" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -64,7 +71,7 @@ serve(async (req) => {
     }
 
     const audioBuffer = await response.arrayBuffer();
-    
+
     return new Response(audioBuffer, {
       headers: {
         ...corsHeaders,

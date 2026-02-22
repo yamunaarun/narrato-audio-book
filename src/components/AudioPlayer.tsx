@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import {
   synthesizeOnline, synthesizeOffline, stopOfflineTTS, pauseOfflineTTS, resumeOfflineTTS,
-  getLangCode, OPENAI_VOICES, OpenAIVoice
+  getLangCode, ELEVENLABS_VOICES, ElevenLabsVoice
 } from "@/lib/ttsEngine";
 
 interface AudioPlayerProps {
@@ -29,7 +29,7 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
   const [rate, setRate]                 = useState(1);
   const [volume, setVolume]             = useState(1);
   const [muted, setMuted]               = useState(false);
-  const [voice, setVoice]               = useState<OpenAIVoice>("alloy");
+  const [voice, setVoice]               = useState<string>("JBFqnCBsd6RMkjVDRZzb");
   const [showSettings, setShowSettings] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -262,7 +262,7 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
           {/* Online/Offline TTS indicator */}
           <span className={`text-xs flex items-center gap-1 ${isOnline ? "text-success" : "text-warning"}`}>
             {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            {isOnline ? "OpenAI" : "Browser"}
+            {isOnline ? "ElevenLabs" : "Browser"}
           </span>
         </div>
 
@@ -349,10 +349,10 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
             <select
               className="input-field text-xs py-2"
               value={voice}
-              onChange={e => setVoice(e.target.value as OpenAIVoice)}
+              onChange={e => setVoice(e.target.value)}
               disabled={!isOnline}
             >
-              {OPENAI_VOICES.map(v => (
+              {ELEVENLABS_VOICES.map(v => (
                 <option key={v.id} value={v.id}>{v.label}</option>
               ))}
             </select>
