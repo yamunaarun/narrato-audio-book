@@ -1,73 +1,45 @@
 /**
- * Smart TTS engine: ElevenLabs online, browser SpeechSynthesis offline fallback.
+ * Browser-only TTS engine using SpeechSynthesis API (no API keys needed).
  */
 
-const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/text-to-speech`;
+export type BrowserVoice = { id: string; label: string };
 
-// ElevenLabs voice IDs and labels
-export type ElevenLabsVoice = string;
-
-export const ELEVENLABS_VOICES: { id: string; label: string }[] = [
-  { id: "JBFqnCBsd6RMkjVDRZzb", label: "George" },
-  { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah" },
-  { id: "Xb7hH8MSUJpSbSDYk0k2", label: "Alice" },
-  { id: "onwK4e9ZLuTAKqWW03F9", label: "Daniel" },
-  { id: "pFZP5JQG7iQjIQuC4Bku", label: "Lily" },
-  { id: "CwhRBWXzGAHq8TQ4Fs17", label: "Roger" },
-  { id: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam" },
-  { id: "cgSgspJ2msm6clMCkdW9", label: "Jessica" },
-];
-
-export async function synthesizeOnline(
-  text: string,
-  voiceId: string = "JBFqnCBsd6RMkjVDRZzb",
-  speed: number = 1.0
-): Promise<ArrayBuffer> {
-  const resp = await fetch(TTS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-    },
-    body: JSON.stringify({ text, voiceId, speed }),
-  });
-
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: "TTS failed" }));
-    throw new Error(err.error || `TTS failed (${resp.status})`);
-  }
-
-  return resp.arrayBuffer();
+// Get available browser voices
+export function getBrowserVoices(): BrowserVoice[] {
+  const voices = window.speechSynthesis.getVoices();
+  return voices.map((v, i) => ({ id: String(i), label: `${v.name} (${v.lang})` }));
 }
 
-// Browser TTS fallback
 export function synthesizeOffline(
   text: string,
   lang: string = "en-US",
   rate: number = 1.0,
-  voice?: SpeechSynthesisVoice | null
+  voiceIndex?: number
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = lang;
     utter.rate = rate;
-    if (voice) utter.voice = voice;
+    if (voiceIndex !== undefined) {
+      const voices = window.speechSynthesis.getVoices();
+      if (voices[voiceIndex]) utter.voice = voices[voiceIndex];
+    }
     utter.onend = () => resolve();
     utter.onerror = (e) => reject(e);
     window.speechSynthesis.speak(utter);
   });
 }
 
-export function stopOfflineTTS() {
+export function stopTTS() {
   window.speechSynthesis.cancel();
 }
 
-export function pauseOfflineTTS() {
+export function pauseTTS() {
   window.speechSynthesis.pause();
 }
 
-export function resumeOfflineTTS() {
+export function resumeTTS() {
   window.speechSynthesis.resume();
 }
 

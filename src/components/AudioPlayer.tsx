@@ -1,15 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Play, Pause, Square, Volume2, VolumeX, Download, Loader2, RotateCcw,
-  Wifi, WifiOff, Settings2, ChevronDown, ChevronUp
+  Play, Pause, Square, Download, Loader2, RotateCcw, Settings2
 } from "lucide-react";
 import { AudiobookEntry, savePlaybackState, getPlaybackState } from "@/lib/audiobookStore";
 import { useAuth } from "@/contexts/AuthContext";
-import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import {
-  synthesizeOnline, synthesizeOffline, stopOfflineTTS, pauseOfflineTTS, resumeOfflineTTS,
-  getLangCode, ELEVENLABS_VOICES, ElevenLabsVoice
-} from "@/lib/ttsEngine";
+import { synthesizeOffline, stopTTS, pauseTTS, resumeTTS, getLangCode, getBrowserVoices } from "@/lib/ttsEngine";
 
 interface AudioPlayerProps {
   book: AudiobookEntry;
@@ -21,18 +16,15 @@ const RATE_OPTIONS = [0.75, 1, 1.25, 1.5, 2];
 
 export default function AudioPlayer({ book }: AudioPlayerProps) {
   const { user } = useAuth();
-  const isOnline = useOnlineStatus();
 
-  const [state, setState]               = useState<PlayState>("idle");
+  const [state, setState] = useState<PlayState>("idle");
   const [selectedParagraphs, setSelectedParagraphs] = useState<Set<number>>(new Set());
-  const [currentParagraph, setCurrentParagraph]   = useState<number>(-1);
-  const [rate, setRate]                 = useState(1);
-  const [volume, setVolume]             = useState(1);
-  const [muted, setMuted]               = useState(false);
-  const [voice, setVoice]               = useState<string>("JBFqnCBsd6RMkjVDRZzb");
+  const [currentParagraph, setCurrentParagraph] = useState<number>(-1);
+  const [rate, setRate] = useState(1);
+  const [voiceIndex, setVoiceIndex] = useState<number>(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [browserVoices, setBrowserVoices] = useState<{ id: string; label: string }[]>([]);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const playQueueRef = useRef<number[]>([]);
   const queueIndexRef = useRef(0);
   const abortRef = useRef(false);
@@ -40,6 +32,14 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
   const paragraphs = book.paragraphs?.length > 0
     ? book.paragraphs
     : book.translatedText.split(/\n\n+/).filter(Boolean);
+
+  // Load browser voices
+  useEffect(() => {
+    const loadVoices = () => setBrowserVoices(getBrowserVoices());
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    return () => { window.speechSynthesis.onvoiceschanged = null; };
+  }, []);
 
   // Load saved playback state
   useEffect(() => {
@@ -54,13 +54,11 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
     });
   }, [user, book.id]);
 
-  // Save playback state when it changes
   const saveState = useCallback((paraIdx: number) => {
     if (!user) return;
     savePlaybackState(user.id, book.id, 0, paraIdx, rate);
   }, [user, book.id, rate]);
 
-  // Toggle paragraph selection
   const toggleParagraph = (index: number) => {
     setSelectedParagraphs(prev => {
       const next = new Set(prev);
@@ -70,7 +68,7 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
     });
   };
 
-  // Play a single paragraph
+  // Play a single paragraph using browser TTS
   const playParagraph = async (index: number) => {
     if (index < 0 || index >= paragraphs.length) {
       setState("ended");
@@ -78,84 +76,27 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
     }
 
     setCurrentParagraph(index);
-    setState("loading");
+    setState("playing");
     saveState(index);
 
     const text = paragraphs[index];
 
     try {
-      if (isOnline) {
-        // OpenAI TTS
-        const audioData = await synthesizeOnline(text, voice, rate);
-        if (abortRef.current) return;
+      await synthesizeOffline(text, getLangCode(book.language), rate, voiceIndex);
+      if (abortRef.current) return;
 
-        const blob = new Blob([audioData], { type: "audio/mpeg" });
-        const url = URL.createObjectURL(blob);
-
-        if (audioRef.current) {
-          audioRef.current.pause();
-          URL.revokeObjectURL(audioRef.current.src);
-        }
-
-        const audio = new Audio(url);
-        audio.volume = muted ? 0 : volume;
-        audioRef.current = audio;
-
-        audio.onended = () => {
-          URL.revokeObjectURL(url);
-          // Play next in queue
-          queueIndexRef.current++;
-          if (queueIndexRef.current < playQueueRef.current.length && !abortRef.current) {
-            playParagraph(playQueueRef.current[queueIndexRef.current]);
-          } else {
-            setState("ended");
-          }
-        };
-
-        audio.onerror = () => {
-          URL.revokeObjectURL(url);
-          setState("idle");
-        };
-
-        setState("playing");
-        await audio.play();
+      queueIndexRef.current++;
+      if (queueIndexRef.current < playQueueRef.current.length && !abortRef.current) {
+        playParagraph(playQueueRef.current[queueIndexRef.current]);
       } else {
-        // Offline browser TTS fallback
-        setState("playing");
-        await synthesizeOffline(text, getLangCode(book.language), rate);
-        if (abortRef.current) return;
-
-        queueIndexRef.current++;
-        if (queueIndexRef.current < playQueueRef.current.length && !abortRef.current) {
-          playParagraph(playQueueRef.current[queueIndexRef.current]);
-        } else {
-          setState("ended");
-        }
+        setState("ended");
       }
     } catch (err) {
       console.error("TTS error:", err);
-      // Fallback to browser TTS if online fails
-      if (isOnline) {
-        try {
-          setState("playing");
-          await synthesizeOffline(text, getLangCode(book.language), rate);
-          if (abortRef.current) return;
-          queueIndexRef.current++;
-          if (queueIndexRef.current < playQueueRef.current.length && !abortRef.current) {
-            playParagraph(playQueueRef.current[queueIndexRef.current]);
-          } else {
-            setState("ended");
-          }
-        } catch {
-          setState("idle");
-        }
-      } else {
-        setState("idle");
-      }
+      setState("idle");
     }
   };
 
-  // Play selected paragraphs or all
   const handlePlayAll = () => {
     abortRef.current = false;
     const queue = selectedParagraphs.size > 0
@@ -167,7 +108,6 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
     playParagraph(queue[0]);
   };
 
-  // Play single paragraph click
   const handlePlaySingle = (index: number) => {
     abortRef.current = false;
     playQueueRef.current = [index];
@@ -176,31 +116,18 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
   };
 
   const handlePause = () => {
-    if (isOnline && audioRef.current) {
-      audioRef.current.pause();
-    } else {
-      pauseOfflineTTS();
-    }
+    pauseTTS();
     setState("paused");
   };
 
   const handleResume = () => {
-    if (isOnline && audioRef.current) {
-      audioRef.current.play();
-    } else {
-      resumeOfflineTTS();
-    }
+    resumeTTS();
     setState("playing");
   };
 
   const handleStop = () => {
     abortRef.current = true;
-    if (audioRef.current) {
-      audioRef.current.pause();
-      URL.revokeObjectURL(audioRef.current.src);
-      audioRef.current = null;
-    }
-    stopOfflineTTS();
+    stopTTS();
     setState("idle");
     setCurrentParagraph(-1);
   };
@@ -222,28 +149,17 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
     URL.revokeObjectURL(url);
   };
 
-  // Update volume on audioRef
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = muted ? 0 : volume;
-    }
-  }, [volume, muted]);
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       abortRef.current = true;
-      if (audioRef.current) {
-        audioRef.current.pause();
-        URL.revokeObjectURL(audioRef.current.src);
-      }
-      stopOfflineTTS();
+      stopTTS();
     };
   }, []);
 
   return (
     <div className="space-y-3">
-      {/* Status + TTS mode indicator */}
+      {/* Status indicator */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1.5 ${
@@ -259,10 +175,8 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
              state === "ended"   ? "✓ Done" : "Ready"}
           </span>
 
-          {/* Online/Offline TTS indicator */}
-          <span className={`text-xs flex items-center gap-1 ${isOnline ? "text-success" : "text-warning"}`}>
-            {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            {isOnline ? "ElevenLabs" : "Browser"}
+          <span className="text-xs flex items-center gap-1 text-muted-foreground">
+            🔊 Browser TTS
           </span>
         </div>
 
@@ -291,10 +205,6 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
               className="w-11 h-11 rounded-xl flex items-center justify-center bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md active:scale-95">
               <Play className="w-5 h-5 ml-0.5" />
             </button>
-          ) : state === "loading" ? (
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-primary text-primary-foreground shadow-md">
-              <Loader2 className="w-5 h-5 animate-spin" />
-            </div>
           ) : (
             <button onClick={handlePlayAll}
               className="w-11 h-11 rounded-xl flex items-center justify-center bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md active:scale-95">
@@ -321,10 +231,6 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
 
         {/* Right controls */}
         <div className="flex items-center gap-1">
-          <button onClick={() => setMuted(!muted)} title="Mute"
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
-            {muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-          </button>
           <button onClick={handleDownload} title="Download text"
             className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
             <Download className="w-3.5 h-3.5" />
@@ -343,27 +249,20 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
         <div className="bg-muted/60 rounded-xl p-4 space-y-3 animate-fade-up border border-border">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Settings</p>
 
-          {/* OpenAI Voice selection (online only) */}
+          {/* Browser voice selection */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-foreground">Voice {!isOnline && "(offline — browser default)"}</label>
+            <label className="text-xs font-medium text-foreground">Voice</label>
             <select
               className="input-field text-xs py-2"
-              value={voice}
-              onChange={e => setVoice(e.target.value)}
-              disabled={!isOnline}
+              value={voiceIndex}
+              onChange={e => setVoiceIndex(Number(e.target.value))}
             >
-              {ELEVENLABS_VOICES.map(v => (
-                <option key={v.id} value={v.id}>{v.label}</option>
-              ))}
+              {browserVoices.length > 0 ? browserVoices.map((v, i) => (
+                <option key={i} value={i}>{v.label}</option>
+              )) : (
+                <option value={0}>Default</option>
+              )}
             </select>
-          </div>
-
-          {/* Volume slider */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-foreground">Volume: {Math.round(volume * 100)}%</label>
-            <input type="range" min={0} max={1} step={0.05} value={volume}
-              onChange={e => setVolume(parseFloat(e.target.value))}
-              className="w-full accent-primary" />
           </div>
         </div>
       )}
@@ -398,19 +297,16 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
               }`}
               onClick={() => toggleParagraph(i)}
             >
-              {/* Paragraph number */}
               <span className="text-xs text-muted-foreground font-mono mt-0.5 w-5 text-right shrink-0">
                 {i + 1}
               </span>
 
-              {/* Text */}
               <p className={`text-xs leading-relaxed flex-1 ${
                 isActive ? "text-primary font-medium" : "text-foreground"
               }`}>
                 {p.length > 200 ? p.substring(0, 200) + "…" : p}
               </p>
 
-              {/* Play button for individual paragraph */}
               <button
                 onClick={(e) => { e.stopPropagation(); handlePlaySingle(i); }}
                 className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
@@ -420,11 +316,7 @@ export default function AudioPlayer({ book }: AudioPlayerProps) {
                 }`}
                 title={`Play paragraph ${i + 1}`}
               >
-                {isActive && state === "loading" ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Play className="w-3 h-3" />
-                )}
+                <Play className="w-3 h-3" />
               </button>
             </div>
           );
